@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Studio</title>
+<link rel="icon" href="__FAVICON__">
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="toolbar" role="toolbar" aria-label="Main">
+    <div class="group">
+      <button class="btn" id="btnSidebar" title="Toggle sidebar" data-icon="sidebar"></button>
+      <button class="btn label" id="btnOpen" title="Open a PDF or Markdown file (Ctrl+O)" data-icon="open">Open</button>
+      <button class="btn label needs-doc pdf-only" id="btnAdd" title="Add pages from another PDF (merge)" data-icon="filePlus">Merge</button>
+      <button class="btn label primary needs-doc" id="btnSave" title="Save (Ctrl+S)" data-icon="save">Save</button>
+    </div>
+    <div class="sep pdf-only"></div>
+    <div class="group pdf-only">
+      <button class="btn needs-doc" id="btnUndo" title="Undo (Ctrl+Z)" data-icon="undo"></button>
+      <button class="btn needs-doc" id="btnRedo" title="Redo (Ctrl+Y)" data-icon="redo"></button>
+    </div>
+    <div class="sep pdf-only"></div>
+    <div class="group tools pdf-only" id="tools">
+      <button class="btn tool needs-doc" data-tool="read" title="Read &amp; select text (V)" data-icon="cursorText"></button>
+      <button class="btn tool needs-doc" data-tool="select" title="Select / move / resize edits (S)" data-icon="pointer"></button>
+      <button class="btn tool needs-doc" data-tool="text" title="Add text (T)" data-icon="type"></button>
+      <button class="btn tool needs-doc" data-tool="ink" title="Draw (D)" data-icon="pen"></button>
+      <button class="btn tool needs-doc" data-tool="highlight" title="Highlight area (H)" data-icon="highlighter"></button>
+      <button class="btn tool needs-doc" data-tool="rect" title="Rectangle (R)" data-icon="square"></button>
+      <button class="btn tool needs-doc" data-tool="whiteout" title="White-out / cover content (W)" data-icon="eraser"></button>
+      <button class="btn tool needs-doc" data-tool="image" title="Insert image" data-icon="image"></button>
+      <button class="btn tool needs-doc" data-tool="sign" title="Signature" data-icon="signature"></button>
+    </div>
+    <div class="sep"></div>
+    <div class="group">
+      <button class="btn needs-doc" id="btnZoomOut" title="Zoom out (Ctrl -)" data-icon="zoomOut"></button>
+      <select id="zoomSel" class="needs-doc" title="Zoom">
+        <option value="fitw">Fit width</option>
+        <option value="fitp">Fit page</option>
+        <option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option>
+        <option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option>
+        <option value="3">300%</option>
+        <option value="custom" hidden>—</option>
+      </select>
+      <button class="btn needs-doc" id="btnZoomIn" title="Zoom in (Ctrl +)" data-icon="zoomIn"></button>
+    </div>
+    <div class="group pagenav pdf-only">
+      <input id="pageNum" class="needs-doc" type="text" inputmode="numeric" value="" aria-label="Page number">
+      <span id="pageCount" class="muted">/ 0</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="group search">
+      <span class="search-box"><i data-icon="search"></i><input id="searchInput" class="needs-doc" type="search" placeholder="Find in document" aria-label="Find"></span>
+      <span id="searchCount" class="muted small"></span>
+      <button class="btn needs-doc" id="btnPrev" title="Previous match (Shift+Enter)" data-icon="chevUp"></button>
+      <button class="btn needs-doc" id="btnNext" title="Next match (Enter)" data-icon="chevDown"></button>
+    </div>
+    <button class="btn" id="btnHelp" title="Help &amp; shortcuts" data-icon="help"></button>
+  </header>
+
+  <div class="subbar needs-doc-bar" id="subbar">
+    <div class="group pdf-only" id="propsGroup">
+      <span class="muted small" id="propsLabel">Read mode</span>
+      <span class="props" id="propColorWrap">
+        <span class="swatches" id="swatches"></span>
+        <input type="color" id="propColor" title="Custom color">
+      </span>
+      <label class="props" id="propFontWrap"><select id="propFont" title="Font">
+        <option value="Helvetica">Helvetica</option><option value="Helvetica-Bold">Helvetica Bold</option>
+        <option value="Times">Times</option><option value="Times-Bold">Times Bold</option>
+        <option value="Courier">Courier</option><option value="Courier-Bold">Courier Bold</option>
+      </select></label>
+      <label class="props" id="propSizeWrap" title="Font size"><span class="muted small">Size</span>
+        <input type="number" id="propSize" min="4" max="144" step="1" value="14"></label>
+      <label class="props" id="propWidthWrap" title="Line width"><span class="muted small">Line</span>
+        <input type="range" id="propWidth" min="0.5" max="12" step="0.5" value="2"><span id="propWidthVal" class="small">2</span></label>
+      <button class="btn label props danger" id="btnDelAnnot" data-icon="trash" title="Delete selected (Del)">Delete</button>
+    </div>
+    <div class="group md-only" id="mdBar">
+      <div class="seg" role="group" aria-label="View">
+        <button class="seg-btn" data-mdview="preview" title="Formatted view (Ctrl+E toggles source)">Preview</button>
+        <button class="seg-btn" data-mdview="split" title="Edit with live preview">Split</button>
+        <button class="seg-btn" data-mdview="source" title="Plain text">Source</button>
+      </div>
+      <span class="muted small" id="mdStats"></span>
+    </div>
+    <div class="spacer"></div>
+    <div class="group md-only">
+      <button class="btn label" id="btnMdPrint" title="Print, or choose “Save as PDF” in the print window (Ctrl+P)" data-icon="printer">Print / Save as PDF</button>
+    </div>
+    <div class="group pdf-only">
+      <span class="muted small">Page</span>
+      <button class="btn" id="btnRotL" title="Rotate page left" data-icon="rotL"></button>
+      <button class="btn" id="btnRotR" title="Rotate page right" data-icon="rotR"></button>
+      <button class="btn" id="btnMoveUp" title="Move page up" data-icon="arrowUp"></button>
+      <button class="btn" id="btnMoveDown" title="Move page down" data-icon="arrowDown"></button>
+      <button class="btn" id="btnBlank" title="Insert blank page after this one" data-icon="fileBlank"></button>
+      <button class="btn" id="btnDelPage" title="Delete this page" data-icon="trash"></button>
+      <button class="btn label" id="btnExtract" title="Extract or delete a range of pages" data-icon="scissors">Pages…</button>
+      <button class="btn label" id="btnPrint" title="Preview / print the edited PDF" data-icon="printer">Print</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <aside id="sidebar">
+      <div class="tabs" role="tablist">
+        <button role="tab" class="tab active pdf-only" data-tab="thumbs">Pages</button>
+        <button role="tab" class="tab md-only" data-tab="outline">Outline</button>
+        <button role="tab" class="tab pdf-only" data-tab="form">Form <span id="formBadge" class="badge" hidden></span></button>
+      </div>
+      <div class="tabpanel" id="thumbs" data-panel="thumbs"></div>
+      <div class="tabpanel" id="formPanel" data-panel="form" hidden></div>
+      <div class="tabpanel" id="outline" data-panel="outline" hidden></div>
+    </aside>
+    <section id="viewer" tabindex="-1">
+      <div id="pages"></div>
+      <div id="mdWrap" class="v-preview" hidden>
+        <textarea id="mdSource" spellcheck="false" aria-label="Markdown source"></textarea>
+        <div id="mdScroll"><article id="mdView" class="markdown-body"></article></div>
+      </div>
+      <div id="empty">
+        <div class="empty-card">
+          <div class="logo" data-icon="logo"></div>
+          <h1>PDF Studio</h1>
+          <p>Read, annotate, sign, fill forms and rearrange PDF pages, and read Markdown files.<br>Everything stays on this computer. Nothing is uploaded.</p>
+          <button class="btn label primary big" id="btnOpen2" data-icon="open">Open a file</button>
+          <p class="muted small">or drag &amp; drop a PDF or Markdown (.md) file anywhere in this window</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="dropHint"><div>Drop a PDF or Markdown file to open it<br><span class="small">(a PDF dropped onto an open PDF is merged into it)</span></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<input type="file" id="fileOpen" accept="application/pdf,.pdf,.md,.markdown,.mdown,.mkd,.mkdn,.mdwn,.mdtxt,.mdtext,.rmd,text/markdown,image/png,image/jpeg,image/gif,image/webp,image/svg+xml" multiple hidden>
+<input type="file" id="fileAdd" accept="application/pdf,.pdf" multiple hidden>
+<input type="file" id="fileImage" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+
+<dialog id="sigDlg">
+  <form method="dialog" class="dlg">
+    <h2>Signature</h2>
+    <div class="tabs small-tabs">
+      <button type="button" class="tab active" data-sigtab="draw">Draw</button>
+      <button type="button" class="tab" data-sigtab="type">Type</button>
+      <button type="button" class="tab" data-sigtab="saved" id="sigSavedTab">Saved</button>
+    </div>
+    <div data-sigpanel="draw">
+      <canvas id="sigPad" width="560" height="200"></canvas>
+      <div class="row"><span class="muted small">Draw with mouse, trackpad or touch.</span><span class="spacer"></span><button type="button" class="btn label" id="sigClear">Clear</button></div>
+    </div>
+    <div data-sigpanel="type" hidden>
+      <input type="text" id="sigText" placeholder="Type your name" autocomplete="name">
+      <div id="sigTypePreview" class="sig-type-preview"></div>
+    </div>
+    <div data-sigpanel="saved" hidden>
+      <div id="sigSavedList" class="sig-saved"></div>
+    </div>
+    <div class="row">
+      <label class="small"><input type="checkbox" id="sigRemember" checked> Remember on this computer</label>
+      <span class="spacer"></span>
+      <span class="sig-colors"><button type="button" class="sw" data-sigcolor="#111827" style="background:#111827"></button><button type="button" class="sw" data-sigcolor="#1d4ed8" style="background:#1d4ed8"></button></span>
+      <button value="cancel" class="btn label">Cancel</button>
+      <button type="button" class="btn label primary" id="sigUse">Place signature</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="pagesDlg">
+  <form method="dialog" class="dlg">
+    <h2>Pages</h2>
+    <p class="muted small">Enter pages like <code>1-3, 5, 8-10</code>. This document has <b id="pagesDlgCount">0</b> pages.</p>
+    <input type="text" id="pagesRange" placeholder="e.g. 1-3, 5">
+    <div class="row">
+      <button value="cancel" class="btn label">Cancel</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn label danger" id="pagesDelete" data-icon="trash">Delete these pages</button>
+      <button type="button" class="btn label primary" id="pagesExtract" data-icon="scissors">Save as new PDF</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="helpDlg">
+  <form method="dialog" class="dlg help">
+    <h2>PDF Studio — quick guide</h2>
+    <table>
+      <tr><td><kbd>Ctrl/⌘ O</kbd></td><td>Open PDF</td></tr>
+      <tr><td><kbd>Ctrl/⌘ S</kbd></td><td>Save</td></tr>
+      <tr><td><kbd>Ctrl/⌘ Z</kbd> / <kbd>Ctrl/⌘ Y</kbd></td><td>Undo / Redo</td></tr>
+      <tr><td><kbd>Ctrl/⌘ F</kbd></td><td>Find text</td></tr>
+      <tr><td><kbd>Ctrl/⌘ +</kbd> / <kbd>−</kbd> / scroll</td><td>Zoom</td></tr>
+      <tr><td><kbd>V</kbd> <kbd>S</kbd> <kbd>T</kbd> <kbd>D</kbd> <kbd>H</kbd> <kbd>R</kbd> <kbd>W</kbd></td><td>Read, Select, Text, Draw, Highlight, Rectangle, White-out</td></tr>
+      <tr><td><kbd>Delete</kbd></td><td>Delete the selected edit</td></tr>
+      <tr><td>Double-click text</td><td>Edit text you added</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Finish typing / deselect</td></tr>
+    </table>
+    <p class="small"><b>Editing existing text:</b> PDFs don't store editable paragraphs. To change printed text, use <b>White-out</b> to cover it, then add new text on top.</p>
+    <p class="small"><b>Forms:</b> fillable fields appear in the <b>Form</b> tab of the sidebar. Click a field on the page in Read mode to jump to it.</p>
+    <p class="small"><b>Pages:</b> drag thumbnails to reorder. Use Merge to append another PDF.</p>
+    <p class="small"><b>Markdown:</b> .md files open in <b>Preview</b>. Switch to <b>Split</b> or <b>Source</b> to edit (<kbd>Ctrl/⌘ E</kbd> toggles), then save with <kbd>Ctrl/⌘ S</kbd>. To show pictures that use relative paths, open or drop the image files together with the .md file.</p>
+    <p class="small muted">Everything runs locally in your browser. Your files never leave this computer.</p>
+    <div class="row"><span class="spacer"></span><button class="btn label primary" value="ok">Close</button></div>
+  </form>
+</dialog>
+
+<script>/*__PDFJS__*/</script>
+<script>/*__PDFLIB__*/</script>
+<script>/*__MDLIBS__*/</script>
+<script type="text/plain" id="pdfjs-worker-src">/*__WORKER__*/</script>
+<script>
+/*__APP__*/
+</script>
+</body>
+</html>

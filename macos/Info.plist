@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template for macos/build.sh, which fills in __NAME__, __BUNDLE_ID__ and __VERSION__. -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>__NAME__</string>
+  <key>CFBundleDisplayName</key><string>__NAME__</string>
+  <key>CFBundleIdentifier</key><string>__BUNDLE_ID__</string>
+  <key>CFBundleVersion</key><string>__VERSION__</string>
+  <key>CFBundleShortVersionString</key><string>__VERSION__</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleExecutable</key><string>PDFStudio</string>
+  <key>CFBundleIconFile</key><string>PDFStudio</string>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>LSMinimumSystemVersion</key><string>12.0</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <!-- "Alternate": listed under Open With without taking over as the default app. -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key><string>PDF Document</string>
+      <key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>com.adobe.pdf</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>Markdown Document</string>
+      <key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>net.daringfireball.markdown</string></array>
+    </dict>
+  </array>
+  <!-- Older macOS versions don't declare Markdown themselves. -->
+  <key>UTImportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key><string>net.daringfireball.markdown</string>
+      <key>UTTypeDescription</key><string>Markdown Document</string>
+      <key>UTTypeConformsTo</key><array><string>public.plain-text</string></array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array><string>md</string><string>markdown</string><string>mdown</string><string>mkd</string><string>mkdn</string></array>
+        <key>public.mime-type</key><array><string>text/markdown</string></array>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>
