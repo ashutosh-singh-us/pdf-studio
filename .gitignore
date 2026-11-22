@@ -1,0 +1,17 @@
+# Libraries downloaded by "npm install"
+node_modules/
+
+# Offline copies of downloaded packages (the WebView2 SDK cached by windows/build.ps1)
+vendor/
+
+# Native Windows app builds (windows/build.ps1). Rebuild them; don't commit them.
+dist/PDF-Studio-Windows/
+dist/PDF-Studio-Windows-Debug/
+
+# Mac debug build (macos/build.sh --debug)
+dist/PDF Studio (Debug).app/
+
+# OS clutter
+.DS_Store
+Thumbs.db
+desktop.ini
