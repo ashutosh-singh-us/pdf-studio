@@ -1,0 +1,11 @@
+// App identity. Change these before the first App Store upload.
+// APP_BUNDLE_ID must be unique on the App Store and match the App ID you register.
+// DEVELOPMENT_TEAM is your 10-character Apple Developer Team ID (developer.apple.com -> Membership).
+APP_DISPLAY_NAME = PDF Studio
+APP_BUNDLE_ID = io.github.ashutosh-singh-us.pdfstudio
+DEVELOPMENT_TEAM =
+MARKETING_VERSION = 1.0.0
+CURRENT_PROJECT_VERSION = 1
+
+// Optional local overrides (not committed), e.g. your real team id.
+#include? "Local.xcconfig"
