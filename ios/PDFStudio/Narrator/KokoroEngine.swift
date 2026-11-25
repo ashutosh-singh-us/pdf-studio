@@ -47,8 +47,11 @@ final class KokoroEngine: @unchecked Sendable {
   func speak(_ text: String, voice: String) async throws -> [Float] {
     guard let model = lock.withLock({ model }) else { throw CancellationError() }
     try Task.checkCancellation()
-    let audio = try await model.generate(text: text, voice: voice, refAudio: nil, refText: nil, language: "en-us",
-                                         generationParameters: model.defaultGenerationParameters)
+    // MLX aborts the app on any engine error unless it's inside withError; this turns it into a Swift error.
+    let audio = try await withError {
+      try await model.generate(text: text, voice: voice, refAudio: nil, refText: nil, language: "en-us",
+                               generationParameters: model.defaultGenerationParameters)
+    }
     return audio.asArray(Float.self)
   }
 }

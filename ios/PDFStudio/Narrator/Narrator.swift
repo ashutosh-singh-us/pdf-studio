@@ -33,6 +33,15 @@ final class Narrator: ObservableObject {
   private var worker: Task<Void, Never>?
   private var bgTask: AnyObject?
   private var inBackground = false
+  private var isActive = true
+  /// The last line the voice engine failed on, shown in Listen so it can be reported.
+  @Published private(set) var lastEngineError: String? = UserDefaults.standard.string(forKey: "narratorLastError")
+  /// GPU work is allowed while the app is on screen, or inside a background GPU task.
+  private var gpuAllowed: Bool { (isActive && !inBackground) || backgroundGPUActive }
+  /// A background GPU task is running and hasn't been expired by iOS.
+  private var backgroundGPUActive = false
+  /// You tapped Pause: don't resume automatically.
+  private var userPaused = false
   private var stats = (audio: 0.0, compute: 0.0)
   private let log = Logger(subsystem: "pdfstudio", category: "narrator")
   /// Save audio about once a minute, so an interruption loses at most that much.
@@ -52,6 +61,17 @@ final class Narrator: ObservableObject {
     let nc = NotificationCenter.default
     nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
       MainActor.assumeIsolated { self.enteredBackground() }
+    }
+    // Stop GPU work as soon as the app starts leaving the screen (lock, app switcher, call), before
+    // iOS starts rejecting it; resume when it's active again.
+    nc.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { _ in
+      MainActor.assumeIsolated { self.isActive = false }
+    }
+    nc.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+      MainActor.assumeIsolated {
+        self.isActive = true
+        self.enteredForeground()
+      }
     }
     nc.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { _ in
       MainActor.assumeIsolated { self.enteredForeground() }
@@ -159,16 +179,22 @@ final class Narrator: ObservableObject {
   // MARK: Running
 
   func start() {
-    guard worker == nil, hasPendingWork, ModelDownloader.shared.isInstalled else { return }
+    userPaused = false
+    resume()
+  }
+
+  private func resume() {
+    guard worker == nil, !userPaused, hasPendingWork, ModelDownloader.shared.isInstalled else { return }
     if inBackground { status = .paused("Open PDF Studio to continue narrating."); return }
     if #available(iOS 26.0, *), Self.supportsBackgroundGPU, submitContinuedTask() { return }
     backgroundMode = "Generates while PDF Studio is open. This iPhone doesn't allow background GPU work."
     run(task: nil)
   }
 
+  /// Pause. The running line finishes (or is cancelled) before the worker exits.
   func stop() {
+    userPaused = true
     worker?.cancel()
-    worker = nil
     status = .idle
   }
 
@@ -200,10 +226,12 @@ final class Narrator: ObservableObject {
       return
     }
     bgTask = task
+    backgroundGPUActive = task != nil
     if #available(iOS 26.0, *), let t = task as? BGContinuedProcessingTask {
       t.progress.totalUnitCount = 1000
       t.expirationHandler = { [weak self] in
         Task { @MainActor in
+          self?.backgroundGPUActive = false
           self?.worker?.cancel()
           self?.status = .paused("iOS paused background narration. Open PDF Studio to continue.")
         }
@@ -217,9 +245,13 @@ final class Narrator: ObservableObject {
         t.setTaskCompleted(success: !self.hasPendingWork)
       }
       self.bgTask = nil
+      self.backgroundGPUActive = false
       if !self.hasPendingWork {
         self.status = .idle
         self.engine.unload()
+      } else if self.gpuAllowed {
+        // Stopped for a reason that no longer applies (e.g. the app came back on screen).
+        if case .failed = self.status {} else { self.resume() }
       }
     }
   }
@@ -240,6 +272,7 @@ final class Narrator: ObservableObject {
       }
     } catch is CancellationError {
       // Paused or stopped.
+      if !gpuAllowed { status = .paused("Paused while PDF Studio is off screen.") }
     } catch {
       log.error("narration failed: \(error.localizedDescription)")
       status = .failed(error.localizedDescription)
@@ -264,10 +297,25 @@ final class Narrator: ObservableObject {
     var line = chapter.nextLine
     while line < chapter.lines.count {
       try Task.checkCancellation()
+      if !gpuAllowed { throw CancellationError() }
       let item = chapter.lines[line]
       let voice = book.voice(for: item)
       let t0 = Date()
-      let audio = try await engine.speak(item.t, voice: voice)
+      let audio: [Float]
+      do {
+        audio = try await speakWithRetry(item.t, voice: voice)
+      } catch is CancellationError {
+        throw CancellationError()
+      } catch {
+        // If the app left the screen mid-line, iOS rejected the GPU work: pause, don't fail.
+        if !gpuAllowed { throw CancellationError() }
+        // Otherwise skip this one line rather than blocking the whole queue, and keep the message.
+        noteEngineError(error, line: item.t)
+        consecutiveFailures += 1
+        if consecutiveFailures >= 5 { throw error }
+        audio = []
+      }
+      if !audio.isEmpty { consecutiveFailures = 0 }
       let compute = Date().timeIntervalSince(t0)
       samples += audio
       samples += gap
@@ -285,6 +333,27 @@ final class Narrator: ObservableObject {
       b.chapters[index].nextLine = 0
       books[key] = b
     }
+  }
+
+  private var consecutiveFailures = 0
+
+  private func speakWithRetry(_ text: String, voice: String) async throws -> [Float] {
+    do {
+      return try await engine.speak(text, voice: voice)
+    } catch is CancellationError {
+      throw CancellationError()
+    } catch {
+      guard gpuAllowed else { throw error }
+      log.error("voice engine error, retrying: \(String(describing: error))")
+      return try await engine.speak(text, voice: voice)
+    }
+  }
+
+  private func noteEngineError(_ error: Error, line: String) {
+    let message = "\(String(describing: error)) — line: \(line.prefix(80))"
+    log.error("skipped line: \(message)")
+    lastEngineError = message
+    UserDefaults.standard.set(message, forKey: "narratorLastError")
   }
 
   private func flush(_ samples: [Float], key: String, index: Int, lines: Int) async throws {
@@ -322,9 +391,8 @@ final class Narrator: ObservableObject {
   private func enteredBackground() {
     inBackground = true
     // Without a background GPU task, iOS rejects GPU work once we're in the background.
-    if bgTask == nil, worker != nil {
+    if !backgroundGPUActive, worker != nil {
       worker?.cancel()
-      worker = nil
       status = .paused("Paused while PDF Studio is in the background.")
     }
   }
@@ -333,7 +401,7 @@ final class Narrator: ObservableObject {
     inBackground = false
     guard worker == nil else { return }
     if case .failed = status { return }
-    start()
+    resume()
   }
 }
 

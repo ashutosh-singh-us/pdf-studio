@@ -192,6 +192,9 @@ struct ListenSheet: View {
         Label(why, systemImage: "exclamationmark.triangle").foregroundStyle(.red)
         Button("Try Again") { narrator.start() }
       }
+      if let e = narrator.lastEngineError {
+        Text("Last skipped line: \(e)").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+      }
       if let s = narrator.speed {
         LabeledContent("Speed on this iPhone", value: String(format: "%.2f× real time", s))
       }
