@@ -73,10 +73,10 @@ that runs on the iPhone through MLX. Nothing leaves the device.
 - **Generate:** pick From/To chapters (for example 680 to 730), a narrator voice and a voice for quoted
   dialogue. With "Keep generating ahead" on, reaching chapter N while listening queues chapters up to
   N + 50.
-- **Background:** iOS allows GPU work in the background only inside a continued-processing task, on
-  devices that support it. When the GPU isn't allowed, Kokoro runs on the CPU: inside the
-  continued-processing task started by Generate (shown as a Live Activity), or while narration is
-  playing. Otherwise generation pauses in the background.
+- **Background:** iOS allows GPU work in the background only inside a continued-processing task
+  (iOS 26+, devices that support background GPU). Generate starts one, shown as a Live Activity.
+  Without it, generation pauses when you leave the app and resumes when you return. MLX on the CPU
+  was measured far too slow to use as a fallback (no sentence finished in 90 s on an M4).
 - **Storage:** AAC 32 kbps mono, about 0.27 MB per minute (about 250 MB for 50 chapters).
 - **Playback:** lock screen and headphone controls, ±15 s, next/previous chapter, speed 0.8–2×.
   Your place is remembered per book.

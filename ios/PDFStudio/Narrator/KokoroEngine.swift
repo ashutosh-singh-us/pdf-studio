@@ -5,7 +5,6 @@ import MLXAudioCore
 import MLXAudioTTS
 
 /// Runs Kokoro-82M with MLX. Loads only from the downloaded files; never touches the network.
-/// Small enough to run on the CPU too, which iOS allows in the background when the GPU isn't.
 final class KokoroEngine: @unchecked Sendable {
   static let sampleRate = 24_000
   static var voices: [String] { VoiceFiles.voiceNames }
@@ -44,15 +43,12 @@ final class KokoroEngine: @unchecked Sendable {
     #endif
   }
 
-  /// Speaks one line. `cpu` runs it on the CPU (for when iOS doesn't allow background GPU use).
-  func speak(_ text: String, voice: String, cpu: Bool = false) async throws -> [Float] {
+  /// Speaks one line on the GPU.
+  func speak(_ text: String, voice: String) async throws -> [Float] {
     guard let model = lock.withLock({ model }) else { throw CancellationError() }
     try Task.checkCancellation()
-    let run = {
-      try await model.generate(text: text, voice: voice, refAudio: nil, refText: nil, language: "en-us",
-                               generationParameters: model.defaultGenerationParameters)
-    }
-    let audio = cpu ? try await Device.withDefaultDevice(.cpu, run) : try await run()
+    let audio = try await model.generate(text: text, voice: voice, refAudio: nil, refText: nil, language: "en-us",
+                                         generationParameters: model.defaultGenerationParameters)
     return audio.asArray(Float.self)
   }
 }

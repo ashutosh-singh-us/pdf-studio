@@ -1,5 +1,4 @@
 import AVFoundation
-import MLX
 import XCTest
 @testable import PDFStudio
 
@@ -23,21 +22,18 @@ final class KokoroEndToEndTests: XCTestCase {
     XCTAssertTrue(VoiceFiles.all.allSatisfy(\.isInstalled))
 
     let engine = KokoroEngine()
-    // MLX has no GPU in the simulator: load and run everything on the CPU.
-    try await Device.withDefaultDevice(.cpu) { try await engine.load() }
+    try await engine.load()
     let text = "The blacksmith wiped the soot from his face and stared at the glowing blade."
     let start = Date()
-    let samples = try await Device.withDefaultDevice(.cpu) { try await engine.speak(text, voice: KokoroEngine.defaultNarrator, cpu: true) }
+    let samples = try await engine.speak(text, voice: KokoroEngine.defaultNarrator)
     let seconds = Double(samples.count) / Double(KokoroEngine.sampleRate)
     let compute = Date().timeIntervalSince(start)
-    print("KOKORO cpu: \(seconds)s audio in \(compute)s (\(seconds / compute)x real time)")
+    print("KOKORO: \(seconds)s audio in \(compute)s (\(seconds / compute)x real time)")
     XCTAssertGreaterThan(seconds, 2)
     XCTAssertLessThan(seconds, 15)
     XCTAssertGreaterThan(samples.map(abs).max() ?? 0, 0.05)
 
-    let dialogue = try await Device.withDefaultDevice(.cpu) {
-      try await engine.speak("You actually did it!", voice: KokoroEngine.defaultDialogue, cpu: true)
-    }
+    let dialogue = try await engine.speak("You actually did it!", voice: KokoroEngine.defaultDialogue)
     XCTAssertGreaterThan(dialogue.count, KokoroEngine.sampleRate / 2)
 
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("kokoro-e2e.m4a")

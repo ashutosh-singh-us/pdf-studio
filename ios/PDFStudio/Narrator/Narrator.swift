@@ -7,10 +7,9 @@ import UIKit
 /// Queues chapters, generates their audio with Kokoro, and keeps going in the background where iOS allows it.
 ///
 /// Background rules on iPhone: apps can't use the GPU from the background, except inside a
-/// continued-processing task (iOS 26+) on devices that support background GPU. Kokoro is small enough
-/// to run on the CPU, so in the background it switches to the CPU whenever the GPU isn't allowed:
-/// inside a continued-processing task (started when you tap Generate, shown as a Live Activity), or
-/// while narration is playing. Otherwise it pauses in the background and resumes when you return.
+/// continued-processing task (iOS 26+) on devices that support background GPU. That task is started
+/// when you tap Generate and shows its progress in a Live Activity. Without it, generation pauses when
+/// you leave the app and resumes when you return. (MLX on the CPU was far too slow to be a fallback.)
 @MainActor
 final class Narrator: ObservableObject {
   static let shared = Narrator()
@@ -34,8 +33,6 @@ final class Narrator: ObservableObject {
   private var worker: Task<Void, Never>?
   private var bgTask: AnyObject?
   private var inBackground = false
-  /// iOS granted GPU use in the background for the current task.
-  private var backgroundGPU = false
   private var stats = (audio: 0.0, compute: 0.0)
   private let log = Logger(subsystem: "pdfstudio", category: "narrator")
   /// Save audio about once a minute, so an interruption loses at most that much.
@@ -163,11 +160,9 @@ final class Narrator: ObservableObject {
 
   func start() {
     guard worker == nil, hasPendingWork, ModelDownloader.shared.isInstalled else { return }
-    if inBackground, !NarrationPlayer.shared.isPlaying {
-      status = .paused("Open PDF Studio to continue narrating."); return
-    }
-    if #available(iOS 26.0, *), !inBackground, submitContinuedTask() { return }
-    backgroundMode = "Generates while PDF Studio is open or narration is playing."
+    if inBackground { status = .paused("Open PDF Studio to continue narrating."); return }
+    if #available(iOS 26.0, *), Self.supportsBackgroundGPU, submitContinuedTask() { return }
+    backgroundMode = "Generates while PDF Studio is open. This iPhone doesn't allow background GPU work."
     run(task: nil)
   }
 
@@ -187,13 +182,10 @@ final class Narrator: ObservableObject {
     guard registered else { return false }
     let request = BGContinuedProcessingTaskRequest(identifier: id, title: "Narrating chapters", subtitle: "Starting…")
     request.strategy = .fail
-    let gpu = Self.supportsBackgroundGPU
-    if gpu { request.requiredResources = .gpu }
+    request.requiredResources = .gpu
     do {
       try BGTaskScheduler.shared.submit(request)
-      backgroundGPU = gpu
-      backgroundMode = gpu ? "Keeps generating in the background (GPU)."
-                           : "Keeps generating in the background (CPU; this iPhone doesn't allow background GPU work)."
+      backgroundMode = "Keeps generating in the background."
       status = .loadingModel
       return true
     } catch {
@@ -275,8 +267,7 @@ final class Narrator: ObservableObject {
       let item = chapter.lines[line]
       let voice = book.voice(for: item)
       let t0 = Date()
-      // The GPU is off-limits in the background unless iOS granted it; Kokoro runs on the CPU then.
-      let audio = try await engine.speak(item.t, voice: voice, cpu: inBackground && !(bgTask != nil && backgroundGPU))
+      let audio = try await engine.speak(item.t, voice: voice)
       let compute = Date().timeIntervalSince(t0)
       samples += audio
       samples += gap
@@ -330,8 +321,8 @@ final class Narrator: ObservableObject {
 
   private func enteredBackground() {
     inBackground = true
-    // With no background task and nothing playing, iOS suspends the app: pause cleanly.
-    if bgTask == nil, worker != nil, !NarrationPlayer.shared.isPlaying {
+    // Without a background GPU task, iOS rejects GPU work once we're in the background.
+    if bgTask == nil, worker != nil {
       worker?.cancel()
       worker = nil
       status = .paused("Paused while PDF Studio is in the background.")
